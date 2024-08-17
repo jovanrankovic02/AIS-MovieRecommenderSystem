@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 
 # Load MovieLens dataset
 def load_movielens_data():
-    df = pd.read_csv('movielens_data.csv')  # Replace with actual path
+    df = pd.read_csv('Data/ml-1m/ratings.csv')  # Replace with actual path
     df = df.pivot(index='userId', columns='movieId', values='rating').fillna(0)
     return df
 
