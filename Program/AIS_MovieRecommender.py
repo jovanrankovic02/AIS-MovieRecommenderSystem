@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import mean_squared_error
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 
@@ -104,6 +105,29 @@ def clonal_selection_and_advanced_mutation(affinity, user_profiles, iteration, m
     
     return clones
 
+def precision_at_k(recommendations, test_data, k=10):
+    num_users = test_data.shape[0]
+    precision_scores = []
+    
+    for user_id in range(num_users):
+        # Get the top K recommended movie indices
+        recommended_indices = recommendations[user_id].argsort()[::-1][:k]
+        # Get the actual top K movie indices based on the test data
+        relevant_indices = test_data[user_id].argsort()[::-1][:k]
+        
+        # Compute the intersection of recommended and relevant movies
+        relevant_and_recommended = np.intersect1d(recommended_indices, relevant_indices)
+        precision = len(relevant_and_recommended) / k
+        precision_scores.append(precision)
+    
+    return np.mean(precision_scores)
+
+def compute_rmse(predictions, ground_truth):
+    # Flatten both matrices to compare the corresponding predicted and actual ratings
+    predictions = predictions[test_data.nonzero()].flatten()
+    ground_truth = test_data[test_data.nonzero()].flatten()
+    
+    return np.sqrt(mean_squared_error(ground_truth, predictions))
 
 
 # Example usage
@@ -142,7 +166,8 @@ def objective_function(hyperparameters, train_data, test_data):
                                              cooling_rate=cooling_rate)
     
     # Evaluate the system on the test set
-    score = evaluate_recommendations(recommendations, test_data)
+
+    score = precision_at_k(recommendations, test_data)
     
     return score  # Typically, lower is better if you're minimizing error
 
