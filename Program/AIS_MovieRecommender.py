@@ -3,12 +3,34 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
 
 # Load MovieLens dataset
 def load_movielens_data():
-    df = pd.read_csv('/home/korisnik/Desktop/AIS-MovieRecomenderSystem/Data/ml-1m/ratings.csv')  # Replace with actual path
-    df = df.pivot(index='userId', columns='movieId', values='rating').fillna(0)
-    return df
+    df = pd.read_csv('/home/korisnik/Desktop/AIS-MovieRecomenderSystem/Data/ml-1m/ratings.csv', sep=':')
+    
+    # Clean column names by stripping leading/trailing whitespace
+    df.columns = df.columns.str.strip()
+    
+    # Print column names to verify
+    print("Columns in the DataFrame:", df.columns)
+    
+    # Pivot the DataFrame, replace 'userId' with the correct column name if necessary
+    df = df.pivot(index='userId', columns='movieId', values='ratings').fillna(0)
+    df_sample = df.sample(frac=0.1)
+    
+    return df_sample
+
+# Define the search space
+param_space = {
+    'population_size': [50, 100, 200],
+    'cloning_rate': [0.1, 0.3, 0.5],
+    'mutation_rate': [0.05, 0.1, 0.2],
+    'num_generations': [10, 20, 50],
+    'crossover_rate': [0.3, 0.5, 0.7],
+    'differential_factor': [0.5, 0.8, 1.0],
+    'cooling_rate': [0.95, 0.99, 0.999]
+}
 
 # Calculate affinity (similarity) between antibodies and antigens
 def calculate_affinity(user_profiles, user_ratings):
@@ -105,30 +127,6 @@ def clonal_selection_and_advanced_mutation(affinity, user_profiles, iteration, m
     
     return clones
 
-def precision_at_k(recommendations, test_data, k=10):
-    num_users = test_data.shape[0]
-    precision_scores = []
-    
-    for user_id in range(num_users):
-        # Get the top K recommended movie indices
-        recommended_indices = recommendations[user_id].argsort()[::-1][:k]
-        # Get the actual top K movie indices based on the test data
-        relevant_indices = test_data[user_id].argsort()[::-1][:k]
-        
-        # Compute the intersection of recommended and relevant movies
-        relevant_and_recommended = np.intersect1d(recommended_indices, relevant_indices)
-        precision = len(relevant_and_recommended) / k
-        precision_scores.append(precision)
-    
-    return np.mean(precision_scores)
-
-def compute_rmse(predictions, ground_truth):
-    # Flatten both matrices to compare the corresponding predicted and actual ratings
-    predictions = predictions[test_data.nonzero()].flatten()
-    ground_truth = test_data[test_data.nonzero()].flatten()
-    
-    return np.sqrt(mean_squared_error(ground_truth, predictions))
-
 
 # Example usage
 if __name__ == "__main__":
@@ -136,6 +134,7 @@ if __name__ == "__main__":
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
     
     recommendations = ais_recommender_system(train_data)
+    #implement printing out the movie name
     
     # Evaluate the recommendations (e.g., using RMSE or Precision@K)
     # Placeholder: print recommendations for a specific user
@@ -157,33 +156,46 @@ def objective_function(hyperparameters, train_data, test_data):
     
     # Train the AIS-based recommender system with these hyperparameters
     recommendations = ais_recommender_system(train_data, 
-                                             population_size=population_size, 
-                                             cloning_rate=cloning_rate, 
-                                             mutation_rate=mutation_rate, 
-                                             num_generations=num_generations, 
-                                             crossover_rate=crossover_rate, 
-                                             differential_factor=differential_factor, 
-                                             cooling_rate=cooling_rate)
+                                             #population_size=population_size, 
+                                             #cloning_rate=cloning_rate, 
+                                             num_generations=num_generations,
+                                             mutation_rate=mutation_rate,  
+                                             #crossover_rate=crossover_rate, 
+                                             #differential_factor=differential_factor, 
+                                             #cooling_rate=cooling_rate
+                                             )
     
     # Evaluate the system on the test set
 
-    score = precision_at_k(recommendations, test_data)
+    score = precision_at_k(recommendations, test_data, k=10)
+    #score = compute_rmse(recommendations, test_data)
     
     return score  # Typically, lower is better if you're minimizing error
 
-from sklearn.model_selection import train_test_split
-import numpy as np
+def precision_at_k(recommendations, test_data, k=10):
+    num_users = test_data.shape[0]
+    precision_scores = []
+    
+    num_users = min(recommendations.shape[0], test_data.shape[0])
+    for user_id in range(num_users):
+        if user_id >= recommendations.shape[0]:
+            continue
+        relevant_indices = test_data.iloc[user_id].argsort()[::-1][:k]
+        recommended_indices = recommendations[user_id].argsort()[::-1][:k]
+        relevant_and_recommended = np.intersect1d(recommended_indices, relevant_indices)
+        precision = len(relevant_and_recommended) / k
+        precision_scores.append(precision)
 
-# Define the search space
-param_space = {
-    'population_size': [50, 100, 200],
-    'cloning_rate': [0.1, 0.3, 0.5],
-    'mutation_rate': [0.05, 0.1, 0.2],
-    'num_generations': [10, 20, 50],
-    'crossover_rate': [0.3, 0.5, 0.7],
-    'differential_factor': [0.5, 0.8, 1.0],
-    'cooling_rate': [0.95, 0.99, 0.999]
-}
+    
+    return np.mean(precision_scores)
+
+def compute_rmse(predictions, ground_truth):
+    # Flatten both matrices to compare the corresponding predicted and actual ratings
+    predictions = predictions[test_data.nonzero()].flatten()
+    ground_truth = test_data[test_data.nonzero()].flatten()
+    
+    return np.sqrt(mean_squared_error(ground_truth, predictions))
+
 
 # Random Search
 best_score = float('inf')
