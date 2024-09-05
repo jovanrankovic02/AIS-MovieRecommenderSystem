@@ -4,48 +4,29 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 
-# Load MovieLens dataset
+# Ucitavanje podataka iz CSV fajla
 def load_movielens_data():
     df = pd.read_csv('/home/korisnik/Desktop/AIS-MovieRecomenderSystem/Data/ml-1m/ratings.csv', sep=':')
     
-    # Clean column names by stripping leading/trailing whitespace
     df.columns = df.columns.str.strip()
     
-    # Print column names to verify
-    print("Columns in the DataFrame:", df.columns)
-    
-    # Pivot the DataFrame, replace 'userId' with the correct column name if necessary
     df = df.pivot(index='userId', columns='movieId', values='ratings').fillna(0)
     df_sample = df.sample(frac=0.1)
     
     return df_sample
-    
-# AIS-based recommender system
-def ais_recommender_system(data, num_generations=10, mutation_rate=0.1):
-    user_profiles = np.random.rand(data.shape[0], data.shape[1])  # Initialize antibodies
-    
-    for _ in range(num_generations):
-        affinity = calculate_affinity(user_profiles, data)
-        user_profiles = clonal_selection_and_mutation(affinity, user_profiles, mutation_rate)
-        
-        # Convergence check (optional): if no improvement, stop early
-    
-    # Generate recommendations based on final user_profiles
-    recommendations = np.dot(user_profiles, data.T)
-    
-    return recommendations
 
-# Calculate affinity (similarity) between antibodies and antigens
+# Racunanje afiniteta tj. slicnosti izmedju antitela i antigena
 def calculate_affinity(user_profiles, user_ratings):
     return cosine_similarity(user_profiles, user_ratings)
 
+# Definisanje razlicitih tipova mutacija koje ce biti koriscene
+# (Ovaj deo koda predstavljaju unapred napravljene funkcije mutacija koje su nadjene na internetu na raznim sajtovima)
 def gaussian_noise_mutation(clones, mean=0, std=0.1):
     noise = np.random.normal(mean, std, clones.shape)
     mutated_clones = clones + noise
     return np.clip(mutated_clones, 0, 1)
 
 def adaptive_mutation(clones, affinities, base_mutation_rate=0.1, scaling_factor=0.5):
-    # Higher mutation for lower affinity
     mutation_rate = base_mutation_rate * (1 - scaling_factor * affinities)
     noise = np.random.normal(0, mutation_rate[:, np.newaxis], clones.shape)
     mutated_clones = clones + noise
@@ -55,9 +36,7 @@ def crossover_mutation(clones, crossover_rate=0.5):
     num_clones = clones.shape[0]
     for i in range(0, num_clones, 2):
         if np.random.rand() < crossover_rate:
-            # Select a crossover point
             crossover_point = np.random.randint(1, clones.shape[1])
-            # Swap segments between two clones
             clones[i, crossover_point:], clones[i+1, crossover_point:] = clones[i+1, crossover_point:], clones[i, crossover_point:]
     return clones
 
@@ -80,55 +59,64 @@ def elite_mutation(clones, affinities, elite_fraction=0.1):
     elite_indices = np.argsort(affinities)[-elite_size:]
     mutated_clones = np.copy(clones)
     
-    # Apply mutation to non-elite clones
+    # Primena mutacija na klonove
     non_elite_indices = np.setdiff1d(np.arange(len(clones)), elite_indices)
     mutated_clones[non_elite_indices] = gaussian_noise_mutation(clones[non_elite_indices])
     
     return mutated_clones
 
+# Primena izabranog tipa mutacije na klonove
 def clonal_selection_and_advanced_mutation(affinity, user_profiles, iteration, mutation_rate=0.1):
     best_indices = np.argsort(affinity.sum(axis=1))[-int(len(user_profiles) * 0.1):]
     best_profiles = user_profiles[best_indices]
     
     clones = np.repeat(best_profiles, repeats=5, axis=0)
     
-    # Apply advanced mutations
-    clones = gaussian_noise_mutation(clones)
-    clones = adaptive_mutation(clones, affinity)
-    clones = crossover_mutation(clones)
-    clones = differential_mutation(clones)
-    clones = simulated_annealing_mutation(clones, iteration=iteration)
+    # Primena izabranog tipa mutacije
+    #clones = gaussian_noise_mutation(clones)
+    #clones = adaptive_mutation(clones, affinity)
+    #clones = crossover_mutation(clones)
+    #clones = differential_mutation(clones)
+    #clones = simulated_annealing_mutation(clones, iteration=iteration)
     clones = elite_mutation(clones, affinity)
     
     return clones
     
-    # Clonal selection and mutation
+# Kloniranje i mutacija
 def clonal_selection_and_mutation(affinity, user_profiles, mutation_rate=0.1):
-    # Select best-performing antibodies
+    # Biranje najboljih antitela
     best_indices = np.argsort(affinity.sum(axis=1))[-int(len(user_profiles) * 0.1):]
     best_profiles = user_profiles[best_indices]
     
-    # Clone and mutate
     clones = np.repeat(best_profiles, repeats=5, axis=0)
     mutation = np.random.normal(0, mutation_rate, clones.shape)
     clones = clones + mutation
     
     return clones
 
-# Predict ratings for unevaluated movies for a fresh user
+# Glavna funkcija preporucivaca
+def ais_recommender_system(data, num_generations = 10, mutation_rate = 0.2):
+    user_profiles = np.random.rand(data.shape[0], data.shape[1])  
+    
+    for _ in range(num_generations):
+        affinity = calculate_affinity(user_profiles, data)
+        user_profiles = clonal_selection_and_mutation(affinity, user_profiles, mutation_rate)
+    
+    # Generisanje preporuka
+    recommendations = np.dot(user_profiles, data.T)
+    
+    return recommendations
+
 def predict_ratings_for_unevaluated(user_profile, data, known_ratings_indices):
-    # Calculate similarity between the new user profile and all item profiles
+    # Racunanje slicnosti izmedju novog korisnickog profila i vec postojecih
     item_similarity = cosine_similarity([user_profile], data)[0]
     
-    # Predict ratings for all items
+    # Predvidjanje rejtinga za sve profile
     predicted_ratings = np.dot(item_similarity, data) / np.sum(np.abs(item_similarity))
-    
-    # Mask the items that the user has already rated
-    #predicted_ratings[known_ratings_indices] = -np.inf  # Set known ratings to -inf to exclude them
     
     return predicted_ratings
     
-# Evaluate the recommender system on the test population
+# Evaluacija sistema na test populaciji
 def evaluate_recommender_system(test_data, train_data):
     mse_scores = []
     
@@ -136,38 +124,30 @@ def evaluate_recommender_system(test_data, train_data):
         user_profile = test_data.iloc[user_id].values
         known_ratings_indices = np.where(user_profile > 0)[0]
         
-        # If the user has some ratings in the test set, predict ratings for the rest
         if len(known_ratings_indices) > 0:
             predicted_ratings = predict_ratings_for_unevaluated(user_profile, train_data, known_ratings_indices)
             
-            # Only evaluate the predicted ratings for the movies that were actually rated in the test set
+            # Evaluacija samo filmova koji su ocenenji u test populaciji
             true_ratings = user_profile[user_profile > 0]
             predicted_ratings_filtered = predicted_ratings[user_profile > 0]
             
-            # Calculate MSE for this user
+            # Racunanje MSE za trenutnog korisnika
             mse = mean_squared_error(true_ratings, predicted_ratings_filtered)
             mse_scores.append(mse)
     
-    # Return the average MSE over all users in the test set
+    # Racunanje prosecnog MSE-a za sve korisnike unutar test populacije
     return np.mean(mse_scores)
  
-# Compute Precision@K for a single user
+# Definisanje glavne metrike za evaluaciju sistema - Precision@K metrike
+# (Implementacija metrike za evaluaciju nadjena na internetu)
 def precision_at_k_evaluations(actual_ratings, predicted_ratings, k):
-    # Get indices of the top K predictions
     top_k_indices = np.argsort(predicted_ratings)[-k:][::-1]
-    
-    # Count how many of these top K items are in the actual liked items
     relevant_items = np.sum(actual_ratings[top_k_indices] > 0)
-    
-    # Calculate Precision@K
     return relevant_items / k
 
-# Compute Precision@K for a single user
+# Precision@K za jednog korisnika
 def precision_at_k_selection(actual_ratings, predicted_ratings, k):
-    # Get indices of the top K predictions
     top_k_indices = np.argsort(predicted_ratings)[-k:][::-1]
-    
-    # Count how many of these top K items are in the actual liked items
     relevant_items = np.argsort(actual_ratings)[-k:][::-1]
 
     relevant_and_recommended = np.intersect1d(top_k_indices, relevant_items)
@@ -175,7 +155,7 @@ def precision_at_k_selection(actual_ratings, predicted_ratings, k):
     return precision
 
 
-# Evaluate the recommender system using Precision@K on the test population
+# Evaluacija sistema koriscenjem date metrike
 def evaluate_precision_at_k(test_data, train_data, k=10, use_selection=True):
     precision_scores = []
     
@@ -183,30 +163,27 @@ def evaluate_precision_at_k(test_data, train_data, k=10, use_selection=True):
         user_profile = test_data.iloc[user_id].values
         known_ratings_indices = np.where(user_profile > 0)[0]
         
-        # If the user has some ratings in the test set, predict ratings for the rest
         if len(known_ratings_indices) > 0:
             predicted_ratings = predict_ratings_for_unevaluated(user_profile, train_data, known_ratings_indices)
             
-            # Calculate Precision@K for this user
             if use_selection:
                 precision_k = precision_at_k_selection(user_profile, predicted_ratings, k)
             else:
                 precision_k = precision_at_k_evaluations(user_profile, predicted_ratings, k)
             precision_scores.append(precision_k)
     
-    # Return the average Precision@K over all users in the test set
     return np.mean(precision_scores)
 
-# Main function to tie everything together
+# Glavna funkcija koja izvrsava ceo program
 if __name__ == "__main__":
-    # Load and split the data
+    # Ucitavanje podataka
     data = load_movielens_data()
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
     
-    # Train the AIS-based recommender on the training set
-    recommendations = ais_recommender_system(train_data)
+    # Trening sistema
+    recommendations = ais_recommender_system(train_data, num_generations=10, mutation_rate=0.2)
     
-    # Evaluate the recommender system on the test population
+    # Evaluacija sistema na test populaciji
     average_mse = evaluate_recommender_system(test_data, train_data)
     print(f"Mean Squared Error on the test population (ratings): {average_mse}")
     
@@ -215,6 +192,4 @@ if __name__ == "__main__":
 
     average_precision_k = evaluate_precision_at_k(test_data, train_data, k=10)
     print(f"Mean Squared Error on the top-10 recomended movies: {average_precision_k}")
-    
-    print(f"Done!")
     
